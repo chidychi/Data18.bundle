@@ -1,0 +1,7 @@
+http://forums.plexapp.com/index.php/topic/66061-adult-data18com-metadata-agent-release/
+
+Metadata agents for scraping information from the Adult site Data18.com
+
+Data18.bundle: metadata agent will grab Movie metadata from data18.com
+ 
+Data18-Content.bundle: metadata agent will grab Content metadata from data18.com

@@ -3,7 +3,7 @@ import re
 
 # this code was borrowed from the Excalibur Films Agent. April 9 2013
 # URLS
-VERSION_NO = '1.2013.05.22.1'
+VERSION_NO = '1.2013.05.30.1'
 EXC_BASEURL = 'http://www.data18.com/'
 EXC_SEARCH_MOVIES = EXC_BASEURL + 'search/?k=%s&t=0'
 EXC_MOVIE_INFO = EXC_BASEURL + 'content/%s'

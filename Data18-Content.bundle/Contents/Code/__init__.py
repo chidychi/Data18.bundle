@@ -156,7 +156,7 @@ class EXCAgent(Agent.Movies):
     # Genre.
     try:
       metadata.genres.clear()
-      genres = html.xpath('//*[b[contains(text(),"Categories:")]]//a[contains(@href, ".html")]')
+      genres = html.xpath('//*[b[contains(text(),"Categories")]]//a[contains(@href, ".html")]')
       if len(genres) > 0:
         for genreLink in genres:
           genreName = genreLink.text_content().strip('\n')
@@ -191,17 +191,24 @@ class EXCAgent(Agent.Movies):
 
     # Studio
     try:
-      metadata.studio = html.xpath('//*[contains(text(), "Site:")]//a[contains(@href,"data18.com/sites/")]')[0].text_content().strip()
+      metadata.studio = html.xpath('//a[@href="http://www.data18.com/sites/"]/following-sibling::a[last()-1]')[0].text_content().strip()
       Log('Studio Sequence Updated')
     except: pass
 
     # Collection
     try:
-      collection = html.xpath('//*[contains(text(), "Network:")]//a[contains(@href,"data18.com/sites/")]')[0].text_content().strip()
+      collection = html.xpath('//a[@href="http://www.data18.com/sites/"]/following-sibling::a[last()-2]')[0].text_content().strip()
       metadata.collections.clear ()
       metadata.collections.add (collection)
       Log('Collection Sequence Updated')
     except: pass
+
+   # Tagline
+    try:
+      #metadata.tagline = html.xpath('//a[@href="http://www.data18.com/sites/"]/following-sibling::a[last()]')[0].get('href')
+      Log('Tagline Sequence Updated')
+    except: pass
+
 
     Log('Updated:')
     Log('    Title: ' + metadata.title)

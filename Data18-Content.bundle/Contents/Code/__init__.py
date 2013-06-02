@@ -1,9 +1,10 @@
 # Data18-Content
 import re
+import random
 
 # this code was borrowed from the Excalibur Films Agent. April 9 2013
 # URLS
-VERSION_NO = '1.2013.05.30.1'
+VERSION_NO = '1.2013.05.31.1'
 EXC_BASEURL = 'http://www.data18.com/'
 EXC_SEARCH_MOVIES = EXC_BASEURL + 'search/?k=%s&t=0'
 EXC_MOVIE_INFO = EXC_BASEURL + 'content/%s'
@@ -33,11 +34,10 @@ class EXCAgent(Agent.Movies):
       Log('Searching for Year: ' + year)
 
     Log('Searching for Title: ' + title)
-    if title.startswith('The '):
-      if title.count(':'):
-        title = title.split(':',1)[0].replace('The ','',1) + ', The:' + title.split(':',1)[1]
-      else:
-        title = title.replace('The ','',1) + ', The'
+#Strip "The" from title
+#    if title.startswith('The '):
+#      title = title.replace('The ','',1)
+#      Log('Stripping "The" from the start of Title: ' + title)
 
     query = String.URLEncode(String.StripDiacritics(title.replace('-','')))
     searchUrl = EXC_SEARCH_MOVIES % query
@@ -54,22 +54,28 @@ class EXCAgent(Agent.Movies):
       Log('newID: ' + curID)
       try:
         movieResults = HTML.ElementFromURL(movieHREF)
-        curyear = movieResults.xpath('//p[contains(text(),"Release date")]//a')[0].get('href')
+        curyear = movieResults.xpath('//p[contains(text(),"Date")]//a')[0].get('href')
         curyear_group = re.search(r'(\d{8})',curyear)
-        curdate = curyear_group.group(0)
-        curdate = Datetime.ParseDate(curdate).date()
-        curyear = str(curdate.year)
-        curmonth = str(curdate.month)
-        curday = str(curdate.day)
-        #curdate = curyear + "-" + curmonth + "-" + curday 
-        curdate = str(curdate)
-        Log('Found Date = ' + curdate)
-        score = 100 - Util.LevenshteinDistance(title.lower(), curName.lower()) - Util.LevenshteinDistance(year, curyear)
-        Log('It Worked ************************************************************')
+        if curyear_group is None:
+          Log('Date: No date found')
+          score = 100 - Util.LevenshteinDistance(title.lower(), curName.lower())
+          curyear = ''
+          curdate = ''
+        else:
+          curdate = curyear_group.group(0)
+          curdate = Datetime.ParseDate(curdate).date()
+          curyear = str(curdate.year)
+          curmonth = str(curdate.month)
+          curday = str(curdate.day)
+          curdate = str(curdate)
+          Log('Found Date = ' + curdate)
+          score = 100 - Util.LevenshteinDistance(title.lower(), curName.lower()) - Util.LevenshteinDistance(year, curyear)
+          Log('It Worked ************************************************************')
       except (IndexError):
         score = 100 - Util.LevenshteinDistance(title.lower(), curName.lower())
         curyear = ''
         curdate = ''
+        Log('Date: No date found (Exception)')
       if score >= 45:
         if curName.count(', The'):
           curName = 'The ' + curName.replace(', The','',1)
@@ -103,17 +109,24 @@ class EXCAgent(Agent.Movies):
 
     # Release Date
     try:
-      release_date_group = re.search(r'(\d+-\d+-\d+)', metadata.title)
-      release_date = release_date_group.group(0)
-      metadata.originally_available_at = Datetime.ParseDate(release_date).date()
+      curyear = html.xpath('//p[contains(text(),"Date")]//a')[0].get('href')
+      curyear_group = re.search(r'(\d{8})',curyear)
+      curdate = curyear_group.group(0)
+      curdate = Datetime.ParseDate(curdate).date()
+      metadata.originally_available_at = curdate
+      curyear = str(curdate.year)
+      curmonth = str(curdate.month)
+      curday = str(curdate.day)
+      curdate = str(curdate)
       metadata.year = metadata.originally_available_at.year
       metadata.title = re.sub(r'\[\d+-\d+-\d+\]','',metadata.title).strip(' ')
       Log('Title Updated')
       Log('Release Date Sequence Updated')
     except: pass
-
+    # Get Poster
     # Get Official Poster if available
     i = 1
+
     try:
       posterimg = html.xpath('//img[@alt="poster"]')[0]
       posterUrl = posterimg.get('src').strip()
@@ -125,7 +138,17 @@ class EXCAgent(Agent.Movies):
 
     # Get First Photo Set Pic if available
     try:
-      imageURL =  html.xpath('//img[contains(@alt,"image")]/..')[0].get('href')
+      photoSetIndex = 0
+      imageURL =  html.xpath('//img[contains(@alt,"image")]/..')[photoSetIndex].get('href')
+      imagehtml = HTML.ElementFromURL(imageURL)
+      posterimg = imagehtml.xpath('//img[@alt= "image"]')[0]
+      posterUrl = posterimg.get('src').strip()
+      Log('imageUrl: ' + posterUrl)
+      metadata.posters[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': imageURL}).content, sort_order = i)
+      i += 1
+      #Random PhotoSet image incase first image isn't desired
+      photoSetIndex = random.randint(1,len(html.xpath('//img[contains(@alt,"image")]/..'))-1)
+      imageURL =  html.xpath('//img[contains(@alt,"image")]/..')[photoSetIndex].get('href')
       imagehtml = HTML.ElementFromURL(imageURL)
       posterimg = imagehtml.xpath('//img[@alt= "image"]')[0]
       posterUrl = posterimg.get('src').strip()
@@ -135,22 +158,94 @@ class EXCAgent(Agent.Movies):
       Log('Poster - Photoset - Sequence Updated')
     except: pass
 
+    # Get First Photo Set Pic if available (when src is used instead of href)
+    try:
+      photoSetIndex = 0
+      posterimg = html.xpath('//img[contains(@alt,"image")]')[photoSetIndex]
+      posterUrl = posterimg.get('src').strip()
+      Log('imageUrl: ' + posterUrl)
+      metadata.posters[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': contentURL}).content, sort_order = i)
+      i += 1
+      #Random PhotoSet image incase first image isn't desired
+      photoSetIndex = random.randint(1,len(html.xpath('//img[contains(@alt,"image")]'))-1)
+      posterimg = html.xpath('//img[contains(@alt,"image")]')[photoSetIndex]
+      posterUrl = posterimg.get('src').strip()
+      Log('imageUrl: ' + posterUrl)
+      metadata.posters[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': contentURL}).content, sort_order = i)
+      i += 1
+      Log('Poster - Photoset - Sequence Updated')
+    except: pass
+
     # Get alternate Poster - Video
     try:
       posterimg = html.xpath('//div//a//img[@alt="Play this Video"]')[0]
       posterUrl = posterimg.get('src').strip()
       Log('Video Postetr Url: ' + posterUrl)
-      metadata.posters[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': contentURL}).content)
+      metadata.posters[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': contentURL}).content, sort_order = i)
       Log('Video Poster Sequence Updated')
     except: pass
 
     # Get Art
+    # Get Art from "Play this Video"
     try:
+      i = 1
       posterimg = html.xpath('//div//a//img[@alt="Play this Video"]')[0]
       posterUrl = posterimg.get('src').strip()
       Log('ArtUrl: ' + posterUrl)
-      metadata.art[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': contentURL}).content)
+      metadata.art[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': contentURL}).content,  sort_order = i)
+      i += 1
       Log('Art Sequence Updated')
+    except: pass
+    #Second try at "Play this Video" (Embedded html #document)
+    try:
+      imageURL =  html.xpath('//*//iframe[contains(@src,"player.php")][1]')[0].get('src')
+      imagehtml = HTML.ElementFromURL(imageURL)
+      posterimg = imagehtml.xpath('//img[@alt="Play this Video"]')[0]
+      posterUrl = posterimg.get('src').strip()
+      Log('imageUrl: ' + posterUrl)
+      metadata.art[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': imageURL}).content, sort_order = i)
+      i += 1
+      Log('Art -Embedded Video- Sequence Updated')
+    except: pass
+
+ # Get First Photo Set Pic if available
+    try:
+      photoSetIndex = 0
+      imageURL =  html.xpath('//img[contains(@alt,"image")]/..')[photoSetIndex].get('href')
+      imagehtml = HTML.ElementFromURL(imageURL)
+      posterimg = imagehtml.xpath('//img[@alt= "image"]')[0]
+      posterUrl = posterimg.get('src').strip()
+      Log('imageUrl: ' + posterUrl)
+      metadata.art[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': imageURL}).content, sort_order = i)
+      i += 1
+      #Random PhotoSet image incase first image isn't desired
+      photoSetIndex = random.randint(1,len(html.xpath('//img[contains(@alt,"image")]/..'))-1)
+      imageURL =  html.xpath('//img[contains(@alt,"image")]/..')[photoSetIndex].get('href')
+      imagehtml = HTML.ElementFromURL(imageURL)
+      posterimg = imagehtml.xpath('//img[@alt= "image"]')[0]
+      posterUrl = posterimg.get('src').strip()
+      Log('imageUrl: ' + posterUrl)
+      metadata.art[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': imageURL}).content, sort_order = i)
+      i += 1
+      Log('Art - Photoset - Sequence Updated')
+    except: pass
+
+    # Get First Photo Set Pic if available (when src is used instead of href)
+    try:
+      photoSetIndex = 0
+      posterimg = html.xpath('//img[contains(@alt,"image")]')[photoSetIndex]
+      posterUrl = posterimg.get('src').strip()
+      Log('imageUrl: ' + posterUrl)
+      metadata.art[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': contentURL}).content, sort_order = i)
+      i += 1
+      #Random PhotoSet image incase first image isn't desired
+      photoSetIndex = random.randint(1,len(html.xpath('//img[contains(@alt,"image")]'))-1)
+      posterimg = html.xpath('//img[contains(@alt,"image")]')[photoSetIndex]
+      posterUrl = posterimg.get('src').strip()
+      Log('imageUrl: ' + posterUrl)
+      metadata.art[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': contentURL}).content, sort_order = i)
+      i += 1
+      Log('Poster - Photoset - Sequence Updated')
     except: pass
 
     # Genre.
@@ -205,18 +300,38 @@ class EXCAgent(Agent.Movies):
 
    # Tagline
     try:
-      #metadata.tagline = html.xpath('//a[@href="http://www.data18.com/sites/"]/following-sibling::a[last()]')[0].get('href')
+      metadata.tagline = html.xpath('//a[@href="http://www.data18.com/sites/"]/following-sibling::a[last()]')[0].get('href')
       Log('Tagline Sequence Updated')
     except: pass
 
 
     Log('Updated:')
-    Log('    Title: ' + metadata.title)
-    Log('    ID: ' + metadata.id)
-    Log('    Release Date: ' + str(metadata.originally_available_at))
-    Log('    Year: ' + str(metadata.year))
+    Log('    Title:...............' + metadata.title)
+    Log('    ID:..................' + metadata.id)
+    Log('    Release Date:........' + str(metadata.originally_available_at))
+    Log('    Year:................' + str(metadata.year))
+    Log('    TagLine:.............' + str(metadata.tagline))
+    Log('    Studio:..............' + str(metadata.studio))
 
-    for key in metadata.posters.keys():
-      Log('    PosterURLs: ' + key)
+    try:
+      for key in metadata.posters.keys():
+        Log('    PosterURLs:..........' + key)
+    except: pass
+    try:
+      for key in metadata.art.keys():
+        Log('    BackgroundArtURLs:...' + key)
+    except: pass
+    try:
+      for x in range (len(metadata.collections)):
+        Log('    Network:.............' + metadata.collections[x])
+    except: pass
+    try:
+      for x in range (len(metadata.roles)):
+        Log('    Starring:............' + metadata.roles[x])
+    except: pass
 
+    try:
+      for x in range (len(metadata.genres)):
+        Log('    Genres:..............' + metadata.genres[x])
+    except: pass
 

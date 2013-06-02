@@ -1,5 +1,6 @@
 # Data18
 import re
+import random
 
 # this code was borrowed from the Excalibur Films Agent. April 9 2013
 # URLS
@@ -137,6 +138,41 @@ class EXCAgent(Agent.Movies):
         metadata.posters[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': coversURL}).content,sort_order=i)
         Log('Poster-Front-Back-Combined Sequence Updated')
       except: pass
+    
+    # Get Art
+    # Get First Photo Set Pic if available
+    i = 1
+    try:
+      photoSetIndex = 0
+      imageURL =  html.xpath('//img[contains(@alt,"image")]/..')[photoSetIndex].get('href')
+      imagehtml = HTML.ElementFromURL(imageURL)
+      if 'content' in imageURL:
+        photoSetIndex = random.randint(0,len(html.xpath('//img[contains(@alt,"image")]/..'))-1)
+        imageURL =  html.xpath('//img[contains(@alt,"image")]/..')[photoSetIndex].get('href')
+        imagehtml = HTML.ElementFromURL(imageURL)
+        photoSetIndex = 0
+        imageURL =  imagehtml.xpath('//img[contains(@alt,"image")]/..')[photoSetIndex].get('href')
+        imagehtml = HTML.ElementFromURL(imageURL)       
+      posterimg = imagehtml.xpath('//img[@alt= "image"]')[0]
+      posterUrl = posterimg.get('src').strip()
+      Log('imageUrl: ' + posterUrl)
+      metadata.art[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': imageURL}).content, sort_order = i)
+      i += 1
+      #Random PhotoSet image incase first image isn't desired
+      photoSetIndex = random.randint(1,len(html.xpath('//img[contains(@alt,"image")]/..'))-1)
+      imageURL =  html.xpath('//img[contains(@alt,"image")]/..')[photoSetIndex].get('href')
+      imagehtml = HTML.ElementFromURL(imageURL)
+      if 'content' in imageURL:
+        photoSetIndex = random.randint(1,len(imagehtml.xpath('//img[contains(@alt,"image")]/..'))-1)
+        imageURL =  imagehtml.xpath('//img[contains(@alt,"image")]/..')[photoSetIndex].get('href')
+        imagehtml = HTML.ElementFromURL(imageURL)
+      posterimg = imagehtml.xpath('//img[@alt= "image"]')[0]
+      posterUrl = posterimg.get('src').strip()
+      Log('imageUrl: ' + posterUrl)
+      metadata.art[posterUrl] = Proxy.Media(HTTP.Request(posterUrl, headers={'Referer': imageURL}).content, sort_order = i)
+      i += 1
+      Log('Art - Photoset - Sequence Updated')
+    except: pass
 
     # Genre.
     try:
@@ -197,13 +233,40 @@ class EXCAgent(Agent.Movies):
       metadata.collections.add (collection)
       Log('Collection Sequence Updated')
     except: pass
-     
+
+   # Tagline
+    try:
+      metadata.tagline = EXC_MOVIE_INFO % metadata.id
+      Log('Tagline Sequence Updated')
+    except: pass
+
+
     Log('Updated:')
-    Log('    Title: ' + metadata.title)
-    Log('    ID: ' + metadata.id)
-    Log('    Release Date: ' + str(metadata.originally_available_at))
-    Log('    Year: ' + str(metadata.year))
+    Log('    Title:...............' + metadata.title)
+    Log('    ID:..................' + metadata.id)
+    Log('    Release Date:........' + str(metadata.originally_available_at))
+    Log('    Year:................' + str(metadata.year))
+    Log('    TagLine:.............' + str(metadata.tagline))
+    Log('    Studio:..............' + str(metadata.studio))
 
-    for key in metadata.posters.keys():
-      Log('    PosterURLs: ' + key)
+    try:
+      for key in metadata.posters.keys():
+        Log('    PosterURLs:..........' + key)
+    except: pass
+    try:
+      for key in metadata.art.keys():
+        Log('    BackgroundArtURLs:...' + key)
+    except: pass
+    try:
+      for x in range (len(metadata.collections)):
+        Log('    Network:.............' + metadata.collections[x])
+    except: pass
+    try:
+      for x in range (len(metadata.roles)):
+        Log('    Starring:............' + metadata.roles[x].actor)
+    except: pass
 
+    try:
+      for x in range (len(metadata.genres)):
+        Log('    Genres:..............' + metadata.genres[x])
+    except: pass

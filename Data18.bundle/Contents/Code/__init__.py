@@ -4,7 +4,7 @@ import random
 
 # this code was borrowed from the Excalibur Films Agent. April 9 2013
 # URLS
-VERSION_NO = '1.2013.04.12.1'
+VERSION_NO = '1.2013.06.02.1'
 EXC_BASEURL = 'http://www.data18.com/'
 EXC_SEARCH_MOVIES = EXC_BASEURL + 'search/?t=2&k=%s&b=1'
 EXC_MOVIE_INFO = EXC_BASEURL + 'movies/%s'

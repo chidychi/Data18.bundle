@@ -45,7 +45,7 @@ class EXCAgent(Agent.Movies):
     searchResults = HTML.ElementFromURL(searchUrl)
     searchTitle = searchResults.xpath('//title')[0].text_content()
     count = 0
-    for movie in searchResults.xpath('//div[@class="gen"]//p[@class="gen12"]//a[contains(@href,"update")]'):
+    for movie in searchResults.xpath('//div[@class="gen"]//p[@class="gen12"]//a[contains(@href,"content")]'):
       movieHREF = movie.get("href").strip()
       Log('MovieHREF: ' + movieHREF)     
       curName = movie.text_content().strip()

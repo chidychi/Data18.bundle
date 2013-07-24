@@ -14,9 +14,6 @@ INITIAL_SCORE = 100     # Starting value for score before deductions are taken.
 GOOD_SCORE = 98         # Score required to short-circuit matching and stop searching.
 IGNORE_SCORE = 45       # Any score lower than this will be ignored.
 
-GET_SCENE_IMAGES = 0    # The number of images from scenes to fetch (-1 = none, 0 = all)
-GET_POSTER_ALT = True   # Whether a poster should be fetched from an alternate source, when the poster is not split in front/back (currently Data18 Store or AEBN)
-
 def Start():
     #HTTP.ClearCache()
     HTTP.CacheTime = CACHE_1WEEK
@@ -30,6 +27,10 @@ class Data18(Agent.Movies):
     accepts_from = ['com.plexapp.agents.localmedia']
 
     prev_search_provider = 0
+
+    def Log(self, message, *args):
+        if Prefs['debug']:
+            Log(message, *args)
 
     def getDateFromString(self, string):
         return Datetime.ParseDate(string).date()
@@ -85,7 +86,7 @@ class Data18(Agent.Movies):
         if len(normalizedName) == 0:
             normalizedName = media.name
 
-        Log('***** SEARCHING FOR "%s"%s - DATA18CONTENT v.%s *****', normalizedName, searchYear, VERSION_NO)
+        self.Log('***** SEARCHING FOR "%s"%s - DATA18CONTENT v.%s *****', normalizedName, searchYear, VERSION_NO)
 
         # Make the URL
         searchUrl = D18_SEARCH_URL % (String.Quote((normalizedName).encode('utf-8'), usePlus=True))
@@ -93,16 +94,16 @@ class Data18(Agent.Movies):
 
         # Write search result status to log
         if len(found) == 0:
-            Log('No results found for query "%s"%s', normalizedName, searchYear)
+            self.Log('No results found for query "%s"%s', normalizedName, searchYear)
             return
         else:
-            Log('Found %s result(s) for query "%s"%s', len(found), normalizedName, searchYear)
+            self.Log('Found %s result(s) for query "%s"%s', len(found), normalizedName, searchYear)
             i = 1
             for f in found:
-                Log('    %s. %s [%s] (%s) {%s}', i, f['title'], f['url'], str(f['date']), f['thumb'])
+                self.Log('    %s. %s [%s] (%s) {%s}', i, f['title'], f['url'], str(f['date']), f['thumb'])
                 i += 1
 
-        Log('-----------------------------------------------------------------------')
+        self.Log('-----------------------------------------------------------------------')
         # Walk the found items and gather extended information
         info = []
         i = 1
@@ -115,7 +116,7 @@ class Data18(Agent.Movies):
             if len(itemId) == 0:
                 continue
 
-            Log('* ID is                 %s', itemId)
+            self.Log('* ID is                 %s', itemId)
 
             title = f['title']
             thumb = f['thumb']
@@ -135,38 +136,38 @@ class Data18(Agent.Movies):
 
             score = INITIAL_SCORE - Util.LevenshteinDistance(scorebase1, scorebase2)
 
-            Log('* Title is              %s', title)
-            Log('* Date is               %s', str(date))
-            Log('* Score is              %s', str(score))
+            self.Log('* Title is              %s', title)
+            self.Log('* Date is               %s', str(date))
+            self.Log('* Score is              %s', str(score))
 
             if score >= IGNORE_SCORE:
                 info.append({'id': itemId, 'title': title, 'year': year, 'date': date, 'score': score, 'thumb': thumb})
             else:
-                Log('# Score is below ignore boundary (%s)... Skipping!', IGNORE_SCORE)
+                self.Log('# Score is below ignore boundary (%s)... Skipping!', IGNORE_SCORE)
 
             if i != len(found):
-                Log('-----------------------------------------------------------------------')
+                self.Log('-----------------------------------------------------------------------')
 
             i += 1
 
         info = sorted(info, key=lambda inf: inf['score'], reverse=True)
 
         # Output the final results.
-        Log('***********************************************************************')
-        Log('Final result:')
+        self.Log('***********************************************************************')
+        self.Log('Final result:')
         i = 1
         for r in info:
-            Log('    [%s]    %s. %s (%s) [%s]', r['score'], i, r['title'], r['id'], r['thumb'])
+            self.Log('    [%s]    %s. %s (%s) [%s]', r['score'], i, r['title'], r['id'], r['thumb'])
             results.Append(MetadataSearchResult(id = r['id'], name  = r['title'] + ' [' + str(r['date']) + ']', score = r['score'], thumb = r['thumb'], lang = lang))
 
             # If there are more than one result, and this one has a score that is >= GOOD SCORE, then ignore the rest of the results
             if not manual and len(info) > 1 and r['score'] >= GOOD_SCORE:
-                Log('            *** The score for this result is great, so we will use it, and ignore the rest. ***')
+                self.Log('            *** The score for this result is great, so we will use it, and ignore the rest. ***')
                 break
             i += 1
 
     def update(self, metadata, media, lang):
-        Log('***** UPDATING "%s" ID: %s - DATA18CONTENT v.%s *****', media.title, metadata.id, VERSION_NO)
+        self.Log('***** UPDATING "%s" ID: %s - DATA18CONTENT v.%s *****', media.title, metadata.id, VERSION_NO)
 
         # Make url
         url = D18_MOVIE_INFO % metadata.id
@@ -241,7 +242,8 @@ class Data18(Agent.Movies):
         i = 1
         skipNormalPoster = False
 
-        if GET_POSTER_ALT and len(posterHtml.xpath('//div[@id="post_view2"]')) > 0:
+        get_poster_alt = Prefs['posteralt']
+        if get_poster_alt and len(posterHtml.xpath('//div[@id="post_view2"]')) > 0:
             skipNormalPoster = True
 
             if self.getPosterFromAlternate(url, mainHtml, metadata):
@@ -255,7 +257,13 @@ class Data18(Agent.Movies):
                 metadata.posters[poster] = Proxy.Media(HTTP.Request(poster, cacheTime = 0, headers = {'Referer': posterPageUrl}, sleep=REQUEST_DELAY), sort_order = i)
                 i += 1
 
-        if GET_SCENE_IMAGES < 0:
+        scene_image_count = 0
+        try:
+            scene_image_count = int(Prefs['sceneimg'])
+        except:
+            Log.Error('Unable to parse the Scene image count setting as an integer.')
+
+        if scene_image_count < 0:
             return
 
         i = 1
@@ -266,14 +274,14 @@ class Data18(Agent.Movies):
             if sceneUrl is None:
                 continue
 
-            Log('Found scene (%s) - Trying to get fan art from [%s]', sceneName, sceneUrl)
+            self.Log('Found scene (%s) - Trying to get fan art from [%s]', sceneName, sceneUrl)
 
             sceneHtml = HTML.ElementFromURL(sceneUrl, sleep=REQUEST_DELAY)
             sceneTitle = self.getStringContentFromXPath(sceneHtml, '//h1[@class="h1big"]')
             firstImageUrl = self.getAnchorUrlFromXPath(sceneHtml, '//a[img[@alt="image 1"]]')
 
             if firstImageUrl is not None:
-                Log('Scene is "%s" - Found link to image viewer to be [%s]', sceneTitle, firstImageUrl)
+                self.Log('Scene is "%s" - Found link to image viewer to be [%s]', sceneTitle, firstImageUrl)
 
                 imageViewerHtml = HTML.ElementFromURL(firstImageUrl, sleep=REQUEST_DELAY)
 
@@ -294,15 +302,15 @@ class Data18(Agent.Movies):
                     order = i
                     i += 1
 
-                    if GET_SCENE_IMAGES > 0:
-                        if j > GET_SCENE_IMAGES:
+                    if scene_image_count > 0:
+                        if j > scene_image_count:
                             break
                         j += 1
 
                     if imageUrl in metadata.art.keys():
                         continue
 
-                    Log('Found image (%s) [%s]', sceneTitle, imageUrl)
+                    self.Log('Found image (%s) [%s]', sceneTitle, imageUrl)
                     proxies.append((imageUrl, Proxy.Media(HTTP.Request(imageUrl, cacheTime = 0, headers = { 'Referer': thumbTarget }, sleep=REQUEST_DELAY), sort_order = order)))
 
             # Use the player image from the scene page as a backup
@@ -327,7 +335,7 @@ class Data18(Agent.Movies):
 
 
         if altUrl is not None:
-            Log('Attempting to get poster from alternative location (%s) [%s]', provider, altUrl)
+            self.Log('Attempting to get poster from alternative location (%s) [%s]', provider, altUrl)
 
             providerHtml = HTML.ElementFromURL(altUrl, sleep=REQUEST_DELAY)
             frontImgUrl = None
@@ -353,44 +361,44 @@ class Data18(Agent.Movies):
 
     ### Writes metadata information to log.
     def writeInfo(self, header, url, metadata):
-        Log(header)
-        Log('-----------------------------------------------------------------------')
-        Log('* ID:              %s', metadata.id)
-        Log('* URL:             %s', url)
-        Log('* Title:           %s', metadata.title)
-        Log('* Release date:    %s', str(metadata.originally_available_at))
-        Log('* Year:            %s', metadata.year)
-        Log('* Studio:          %s', metadata.studio)
-        Log('* Director:        %s', metadata.directors[0] if len(metadata.directors) > 0  else '')
-        Log('* Tagline:         %s', metadata.tagline)
-        Log('* Summary:         %s', metadata.summary)
+        self.Log(header)
+        self.Log('-----------------------------------------------------------------------')
+        self.Log('* ID:              %s', metadata.id)
+        self.Log('* URL:             %s', url)
+        self.Log('* Title:           %s', metadata.title)
+        self.Log('* Release date:    %s', str(metadata.originally_available_at))
+        self.Log('* Year:            %s', metadata.year)
+        self.Log('* Studio:          %s', metadata.studio)
+        self.Log('* Director:        %s', metadata.directors[0] if len(metadata.directors) > 0  else '')
+        self.Log('* Tagline:         %s', metadata.tagline)
+        self.Log('* Summary:         %s', metadata.summary)
 
         if len(metadata.collections) > 0:
-            Log('|\\')
+            self.Log('|\\')
             for i in range(len(metadata.collections)):
-                Log('| * Collection:    %s', metadata.collections[i])
+                self.Log('| * Collection:    %s', metadata.collections[i])
 
         if len(metadata.roles) > 0:
-            Log('|\\')
+            self.Log('|\\')
             for i in range(len(metadata.roles)):
-                Log('| * Starring:      %s (%s)', metadata.roles[i].actor, metadata.roles[i].photo)
+                self.Log('| * Starring:      %s (%s)', metadata.roles[i].actor, metadata.roles[i].photo)
 
         if len(metadata.genres) > 0:
-            Log('|\\')
+            self.Log('|\\')
             for i in range(len(metadata.genres)):
-                Log('| * Genre:         %s', metadata.genres[i])
+                self.Log('| * Genre:         %s', metadata.genres[i])
 
         if len(metadata.posters) > 0:
-            Log('|\\')
+            self.Log('|\\')
             for poster in metadata.posters.keys():
-                Log('| * Poster URL:    %s', poster)
+                self.Log('| * Poster URL:    %s', poster)
 
         if len(metadata.art) > 0:
-            Log('|\\')
+            self.Log('|\\')
             for art in metadata.art.keys():
-                Log('| * Fan art URL:   %s', art)
+                self.Log('| * Fan art URL:   %s', art)
 
-        Log('***********************************************************************')
+        self.Log('***********************************************************************')
 
 def safe_unicode(s, encoding='utf-8'):
     if s is None:

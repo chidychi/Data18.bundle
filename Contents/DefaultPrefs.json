@@ -1,8 +1,20 @@
 [
 	{
 		"id": "debug",
-		"label": "Output debugging information to the log",
+		"label": "Ouput debugging info in logs",
 		"type": "bool",
 		"default": "false"
+	},
+	{
+		"id": "posteralt",
+		"label": "Allow alternate poster source if Data18 poster is not split in front/back",
+		"type": "bool",
+		"default": "true"
+	},
+	{
+		"id": "sceneimg",
+		"label": "Fan art scene image count (-1 = none, 0 = all)",
+		"type": "text",
+		"default": "0"
 	}
 ]

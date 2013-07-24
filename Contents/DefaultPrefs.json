@@ -1,8 +1,8 @@
 [
 	{
 		"id": "debug",
-        "label": "Output debugging information to the log",
-        "type": "bool",
-        "default": "false"
+		"label": "Output debugging information to the log",
+		"type": "bool",
+		"default": "false"
 	}
 ]

@@ -33,7 +33,10 @@ class Data18(Agent.Movies):
             Log(message, *args)
 
     def getDateFromString(self, string):
-        return Datetime.ParseDate(string).date()
+        try:
+            return Datetime.ParseDate(string).date()
+        except:
+            return None
 
     def getStringContentFromXPath(self, source, query):
         return source.xpath('string(' + query + ')')
@@ -75,6 +78,13 @@ class Data18(Agent.Movies):
         return found
 
     def search(self, results, media, lang, manual=False):
+        yearFromNamePattern = r'\(\d{4}\)'
+        yearFromName = re.search(yearFromNamePattern, media.name)
+        if not media.year and yearFromName is not None:
+            media.year = yearFromName.group(0)[1:-1]
+            media.name = re.sub(yearFromNamePattern, '', media.name).strip()
+            self.Log('Found the year %s in the name "%s". Using it to narrow search.', media.year, media.name)
+
         # Clean up year.
         if media.year:
             searchYear = u' (' + safe_unicode(media.year) + u')'
@@ -157,12 +167,12 @@ class Data18(Agent.Movies):
         self.Log('Final result:')
         i = 1
         for r in info:
-            self.Log('    [%s]    %s. %s (%s) [%s]', r['score'], i, r['title'], r['id'], r['thumb'])
+            self.Log('    [%s]    %s. %s (%s) {%s} [%s]', r['score'], i, r['title'], r['year'], r['id'], r['thumb'])
             results.Append(MetadataSearchResult(id = r['id'], name  = r['title'] + ' [' + str(r['date']) + ']', score = r['score'], thumb = r['thumb'], lang = lang))
 
             # If there are more than one result, and this one has a score that is >= GOOD SCORE, then ignore the rest of the results
             if not manual and len(info) > 1 and r['score'] >= GOOD_SCORE:
-                self.Log('            *** The score for this result is great, so we will use it, and ignore the rest. ***')
+                self.Log('            *** The score for these results are great, so we will use them, and ignore the rest. ***')
                 break
             i += 1
 

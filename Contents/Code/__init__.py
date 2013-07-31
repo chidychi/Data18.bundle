@@ -41,7 +41,7 @@ class EXCAgent(Agent.Movies):
       else:
         title = title.replace('The ','',1) + ', The'
 
-    query = String.URLEncode(String.StripDiacritics(title.replace('-','')))
+    query = String.URLEncode(String.StripDiacritics(title))
     searchUrl = EXC_SEARCH_MOVIES % query
     Log('Search url: ' + searchUrl)
     searchResults = HTML.ElementFromURL(searchUrl)

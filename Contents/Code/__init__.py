@@ -6,7 +6,7 @@ import random
 # URLS
 VERSION_NO = '1.2013.06.02.1'
 EXC_BASEURL = 'http://www.data18.com/'
-EXC_SEARCH_MOVIES = EXC_BASEURL + 'search/?t=2&k=%s&b=1'
+EXC_SEARCH_MOVIES = EXC_BASEURL + 'search/?t=0&k=%s'
 EXC_MOVIE_INFO = EXC_BASEURL + 'movies/%s'
 EXC_STAR_PHOTO = EXC_BASEURL + 'img/stars/120/%s.jpg'
 

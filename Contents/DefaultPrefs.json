@@ -1,20 +1,21 @@
-[
-	{
-		"id": "debug",
-		"label": "Ouput debugging info in logs",
-		"type": "bool",
-		"default": "false"
-	},
-	{
-		"id": "posteralt",
-		"label": "Allow alternate poster source if Data18 poster is not split in front/back",
-		"type": "bool",
-		"default": "true"
-	},
-	{
-		"id": "sceneimg",
-		"label": "Fan art scene image count (-1 = none, 0 = all)",
-		"type": "text",
-		"default": "0"
-	}
-]
+[{
+	"id": "debug",
+	"label": "Ouput debugging info in logs",
+	"type": "bool",
+	"default": "false"
+}, {
+	"id": "posteralt",
+	"label": "Allow alternate poster source if Data18 poster is not split in front/back",
+	"type": "bool",
+	"default": "true"
+}, {
+	"id": "sceneimg",
+	"label": "Fan art scene image count (-1 = none, 0 = all)",
+	"type": "text",
+	"default": "0"
+}, {
+	"id": "imageproxyurl",
+	"label": "Image proxy url",
+	"type": "text",
+	"default": ""
+}]

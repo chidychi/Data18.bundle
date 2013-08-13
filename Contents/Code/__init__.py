@@ -254,25 +254,8 @@ class Data18(Agent.Movies):
         return Prefs['imageproxyurl'] + ('?url=%s&referer=%s' % (url, referer))
 
     def getImages(self, url, mainHtml, metadata, force):
-        posterPageUrl = self.getAnchorUrlFromXPath(mainHtml, '//a[img[@alt="Enlarge Cover"]]')
-        posterHtml = HTML.ElementFromURL(posterPageUrl, sleep=REQUEST_DELAY)
-        i = 1
-        skipNormalPoster = False
-
-        get_poster_alt = Prefs['posteralt']
-        if get_poster_alt and len(posterHtml.xpath('//div[@id="post_view2"]')) > 0:
-            skipNormalPoster = True
-
-            if self.getPosterFromAlternate(url, mainHtml, metadata, force):
-                i += 1
-
-        if not skipNormalPoster:
-            for poster in posterHtml.xpath('//div[@id="post_view"]/img/@src'):
-                if poster in metadata.posters.keys() and not force:
-                    continue
-
-                metadata.posters[poster] = Proxy.Media(HTTP.Request(poster, cacheTime = 0, headers = {'Referer': posterPageUrl}, sleep=REQUEST_DELAY), sort_order = i)
-                i += 1
+        posterKey = str(Datetime.Now()) + url
+        Thread.Create(self.getPosters, self, url, mainHtml, metadata, posterKey, force)
 
         scene_image_count = 0
         try:
@@ -283,8 +266,7 @@ class Data18(Agent.Movies):
         if scene_image_count < 0:
             return
 
-        photos = []
-        i = 1
+        scenes = []
         for scene in mainHtml.xpath('//div[p//b[contains(text(),"Scene ")]]'):
             sceneName = self.getStringContentFromXPath(scene, 'p//b[contains(text(),"Scene ")]')
             sceneUrl = self.getAnchorUrlFromXPath(scene, './/a[not(contains(@href, "download")) and img]')
@@ -294,10 +276,75 @@ class Data18(Agent.Movies):
 
             self.Log('Found scene (%s) - Trying to get fan art from [%s]', sceneName, sceneUrl)
 
+            scenes.append(sceneUrl)
+
+        if scene_image_count > -1:
+            photos = self.getAllSceneImages(scenes, metadata, scene_image_count, force)
+        else:
+            photos = []
+
+        Thread.Wait(posterKey, 1)
+
+        i = 1
+        for photo in photos:
+            if photo['thumb'] is not None:
+                metadata.art[photo['url']] = Proxy.Preview(photo['thumb'], sort_order=i)
+            else:
+                metadata.art[photo['url']] = Proxy.Media(HTTP.Request(photo['url'], cacheTime=0, sleep=REQUEST_DELAY), sort_order=i)
+            i += 1
+
+    def getPosters(self, url, mainHtml, metadata, key, force):
+        try:
+            posterPageUrl = self.getAnchorUrlFromXPath(mainHtml, '//a[img[@alt="Enlarge Cover"]]')
+            posterHtml = HTML.ElementFromURL(posterPageUrl, sleep=REQUEST_DELAY)
+            skipNormalPoster = False
+
+            get_poster_alt = Prefs['posteralt']
+            if get_poster_alt and len(posterHtml.xpath('//div[@id="post_view2"]')) > 0:
+                skipNormalPoster = True
+                self.getPosterFromAlternate(url, mainHtml, metadata, force)
+
+            if not skipNormalPoster:
+                i = 1
+                for poster in posterHtml.xpath('//div[@id="post_view"]/img/@src'):
+                    if poster in metadata.posters.keys() and not force:
+                        continue
+
+                    metadata.posters[poster] = Proxy.Media(HTTP.Request(poster, cacheTime = 0, headers = {'Referer': posterPageUrl}, sleep=REQUEST_DELAY), sort_order = i)
+                    i += 1
+        finally:
+            Thread.Unblock(key)
+
+    def getAllSceneImages(self, scenes, metadata, sceneImgMax, force):
+        results = {}
+        keys = {}
+
+        now = str(Datetime.Now())
+
+        for scene in scenes:
+            sceneResult = []
+            results[scene] = sceneResult
+            sceneKey = now + scene
+            keys[scene] = sceneKey
+            Thread.Create(self.getSceneImages, self, scene, metadata, sceneResult, sceneKey, sceneImgMax, force)
+
+        photos = []
+        i = 1
+        for scene in scenes:
+            Thread.Wait(keys[scene], 5)
+            for img in results[scene]:
+                photos.append(img)
+            i += 1
+
+        return photos
+
+    def getSceneImages(self, sceneUrl, metadata, result, key, sceneImgMax, force):
+        try:
             sceneHtml = HTML.ElementFromURL(sceneUrl, sleep=REQUEST_DELAY)
             sceneTitle = self.getStringContentFromXPath(sceneHtml, '//h1[@class="h1big"]')
 
-            images = sceneHtml.xpath('//img[contains(@alt,"image")]')
+            imgCount = 0
+            images = sceneHtml.xpath('//a[img[contains(@alt,"image")]]/img')
             if images is not None and len(images) > 0:
                 firstImage = images[0].get('src')
                 thumbPatternSearch = re.search(r'(th\w*)/', firstImage)
@@ -322,6 +369,10 @@ class Data18(Agent.Movies):
                     for x in range(1, 5):
                         thumbs.append(thumbBase + '%02d' % x)
 
+                thumbResults = []
+                thumbKeys = []
+
+                i = 1
                 # Go through the thumbnails replacing the id of the previous image in the imageUrl on each iteration.
                 for thumb in thumbs:
                     imgId = thumb[-2:]
@@ -330,19 +381,37 @@ class Data18(Agent.Movies):
                     if thumbPattern is not None:
                         thumbUrl = re.sub(r'\d{1,3}.jpg', thumbPattern + '/' + imgId + '.jpg', imageUrl)
 
+                    if sceneImgMax > 0 and i > sceneImgMax:
+                        break
+                    i += 1
+                    imgCount += 1
+
                     if self.hasProxy():
                         imgUrl = self.makeProxyUrl(imageUrl, thumb)
                     else:
                         imgUrl = imageUrl
                         thumbUrl = None
 
-                    if not imgUrl in metadata.art.keys():
+                    if not imgUrl in metadata.art.keys() or force:
                         thumbContent = None
                         if thumbUrl is not None:
-                            thumbContent = HTTP.Request(thumbUrl, cacheTime = 0, headers = { 'Referer': thumb }, sleep=REQUEST_DELAY).content
-                        photos.append({'url': imgUrl, 'thumb': thumbContent})
+                            thumbResult = []
+                            thumbKey = key + thumbUrl
 
-            if len(photos) == 0:
+                            thumbResults.append(thumbResult)
+                            thumbKeys.append(thumbKey)
+
+                            Thread.Create(self.getThumbnail, self, imgUrl, thumbUrl, thumb, thumbKey, thumbResult)
+
+                i = 0
+                for thumbKey in thumbKeys:
+                    Thread.Wait(thumbKey)
+                    r = thumbResults[i]
+                    if len(r) == 1:
+                        result.append(r[0])
+                    i += 1
+
+            if imgCount == 0:
                 # Use the player image from the main page as a backup
                 playerImg = self.getImageUrlFromXPath(sceneHtml, '//img[@alt="Play this Video" or contains(@src,"/hor.jpg")]')
                 if playerImg is not None and len(playerImg) > 0:
@@ -350,15 +419,16 @@ class Data18(Agent.Movies):
                     if not self.hasProxy:
                         img = playerImg
 
-                    if not playerImg in metadata.art.keys():
-                        photos.append({'url': img, 'thumb': None})
+                    if not img in metadata.art.keys() or force:
+                        result.append({'url': img, 'thumb': None})
+        finally:
+            Thread.Unblock(key)
 
-        for photo in photos:
-            if photo['thumb'] is not None:
-                metadata.art[photo['url']] = Proxy.Preview(photo['thumb'], sort_order=i)
-            else:
-                metadata.art[photo['url']] = Proxy.Media(HTTP.Request(photo['url'], cacheTime=0, sleep=REQUEST_DELAY), sort_order=i)
-            i += 1
+    def getThumbnail(self, imgUrl, thumbUrl, referer, key, result):
+        try:
+            result.append({'url': imgUrl, 'thumb': HTTP.Request(thumbUrl, cacheTime = 0, headers = { 'Referer': referer }, sleep=REQUEST_DELAY).content})
+        finally:
+            Thread.Unblock(key)
 
     def getPosterFromAlternate(self, url, mainHtml, metadata, force):
         provider = ''

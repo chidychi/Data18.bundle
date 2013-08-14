@@ -251,7 +251,7 @@ class Data18(Agent.Movies):
         self.writeInfo('New data', url, metadata)
 
     def hasProxy(self):
-        return len(Prefs['imageproxyurl']) > 0
+        return Prefs['imageproxyurl'] is not None
 
     def makeProxyUrl(self, url, referer):
         return Prefs['imageproxyurl'] + ('?url=%s&referer=%s' % (url, referer))

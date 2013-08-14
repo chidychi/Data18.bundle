@@ -356,11 +356,20 @@ class Data18(Agent.Movies):
 
                 html = HTML.ElementFromURL(firstImageUrl, sleep=REQUEST_DELAY)
 
+                imageCount = None
+                imageCountSearch = re.search(r'Image \d+ of (\d+)', html.text_content())
+                if imageCountSearch is not None:
+                    imageCount = int(imageCountSearch.group(1))
+
                 # Find the actual image
                 imageUrl = self.getImageUrlFromXPath(html, '//div[@id="post_view"]//img')
 
-                # Get the thumbnail urls at the top of the page
-                thumbs = html.xpath('//a[@href="' + firstImageUrl + '"]/..//a/@href')
+                thumbs = []
+                if imageCount is not None:
+                    for idx in range(1, imageCount + 1):
+                        th = '%s%02d' % (firstImageUrl[:-2], idx)
+                        thumbs.append(th)
+                        self.Log('> thumb %s', th)
 
                 # No thumbs were found on the page, which seems to be the case for some scenes where there are only 4 images
                 # so let's just pretend we found thumbs

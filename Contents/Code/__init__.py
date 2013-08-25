@@ -204,7 +204,7 @@ class Data18(Agent.Movies):
                 metadata.year = date.year
 
             # Get the title
-            metadata.title = self.getStringContentFromXPath(html, '//h1[@class="h1big"]')
+            metadata.title = self.getStringContentFromXPath(html, '//h1[@class="h1big" or @class="h1reduce" or @class="h1reduce2"]')
 
             # Set the summary
             paragraph = html.xpath('//p[b[contains(text(),"Description:")]]')

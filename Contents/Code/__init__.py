@@ -327,7 +327,7 @@ class Data18(Agent.Movies):
                 if poster in metadata.posters.keys() and not force:
                     continue
 
-                self.addTask(queue, poster, poster, posterPageUrl, False, i, -1, results)
+                self.addTask(queue, self.downloadImage, poster, poster, posterPageUrl, False, i, -1, results)
                 i += 1
 
     def getSceneImages(self, sceneIndex, sceneUrl, metadata, sceneImgMax, result, force, queue):

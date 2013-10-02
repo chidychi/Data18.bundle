@@ -62,7 +62,6 @@ class Data18(Agent.Movies):
 
     def findDateInTitle(self, title):
         result = re.search(r'(\d+-\d+-\d+)', title)
-        self.Log('searching %s for date', title)
         if result is not None:
             return Datetime.ParseDate(result.group(0)).date()
         return None
@@ -76,7 +75,7 @@ class Data18(Agent.Movies):
             title = self.getStringContentFromXPath(r, 'a[2]')
             murl = self.getAnchorUrlFromXPath(r, 'a[2]')
             thumb = self.getImageUrlFromXPath(r, 'a/img')
-            
+                        
             found.append({'url': murl, 'title': title, 'date': date, 'thumb': thumb})
 
         return found

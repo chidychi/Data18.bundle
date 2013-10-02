@@ -224,7 +224,7 @@ class Data18(Agent.Movies):
             # Set the serie
             serie = html.xpath('//p[b[contains(text(),"Serie:")]]')
             if len(serie) > 0:
-                metadata.collections.add(self.getStringContentFromXPath(studio_and_series[0], 'a[1]'))
+                metadata.collections.add(self.getStringContentFromXPath(serie[0], 'a[1]'))
 
             # Add the genres
             metadata.genres.clear()

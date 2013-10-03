@@ -71,11 +71,11 @@ class Data18(Agent.Movies):
 
         found = []
         for r in html.xpath('//div[a/img[@class="yborder"]]'):
-            date = self.getDateFromString(self.getStringContentFromXPath(r, 'i/text()'))
+            date = self.getDateFromString(self.getStringContentFromXPath(r, 'text()[1]'))
             title = self.getStringContentFromXPath(r, 'a[2]')
             murl = self.getAnchorUrlFromXPath(r, 'a[2]')
             thumb = self.getImageUrlFromXPath(r, 'a/img')
-
+                        
             found.append({'url': murl, 'title': title, 'date': date, 'thumb': thumb})
 
         return found
@@ -207,18 +207,24 @@ class Data18(Agent.Movies):
             metadata.title = self.getStringContentFromXPath(html, '//h1[@class="h1big" or @class="h1reduce" or @class="h1reduce2"]')
 
             # Set the summary
-            paragraph = html.xpath('//p[b[contains(text(),"Description:")]]')
+            paragraph = html.xpath('//div[b[contains(text(),"Description:")]]/p')
             if len(paragraph) > 0:
                 summary = paragraph[0].text_content().strip('\n').strip()
                 summary = re.sub(r'Description:', '', summary.strip())
                 metadata.summary = summary
 
-            # Set the studio and series
+            # Set the studio and director
             metadata.collections.clear()
-            studio_and_series = html.xpath('//p[b[contains(text(),"Studio:")]]')
-            if len(studio_and_series) > 0:
-                metadata.studio = self.getStringContentFromXPath(studio_and_series[0], 'a[1]')
-                metadata.collections.add(self.getStringContentFromXPath(studio_and_series[0], 'a[2]'))
+            studio_and_director = html.xpath('//p[b[contains(text(),"Studio:")]]')
+            if len(studio_and_director) > 0:
+                metadata.studio = self.getStringContentFromXPath(studio_and_director[0], 'a[1]')
+                metadata.directors.clear()
+                metadata.directors.add(self.getStringContentFromXPath(studio_and_director[0], 'a[2]'))
+
+            # Set the serie
+            serie = html.xpath('//p[b[contains(text(),"Serie:")]]')
+            if len(serie) > 0:
+                metadata.collections.add(self.getStringContentFromXPath(serie[0], 'a[1]'))
 
             # Add the genres
             metadata.genres.clear()
@@ -227,12 +233,6 @@ class Data18(Agent.Movies):
                 genre = genre.strip()
                 if len(genre) > 0 and re.match(r'View Complete List', genre) is None:
                     metadata.genres.add(genre)
-
-            # Add the director
-            director = html.xpath('//p[b[contains(text(),"Director:")]]/a/text()')
-            if len(director) > 0:
-                metadata.directors.clear()
-                metadata.directors.add(director[0].strip())
 
             # Add the performers
             metadata.roles.clear()
@@ -323,7 +323,7 @@ class Data18(Agent.Movies):
 
         if not skipNormalPoster:
             i = 1
-            for poster in posterHtml.xpath('//div[@id="post_view"]/img/@src'):
+            for poster in posterHtml.xpath('//div[@id="post_view6"]//img/@src'):
                 if poster in metadata.posters.keys() and not force:
                     continue
 

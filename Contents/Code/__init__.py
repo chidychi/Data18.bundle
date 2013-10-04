@@ -75,7 +75,7 @@ class Data18(Agent.Movies):
             title = self.getStringContentFromXPath(r, 'a[2]')
             murl = self.getAnchorUrlFromXPath(r, 'a[2]')
             thumb = self.getImageUrlFromXPath(r, 'a/img')
-                        
+            
             found.append({'url': murl, 'title': title, 'date': date, 'thumb': thumb})
 
         return found
@@ -278,23 +278,29 @@ class Data18(Agent.Movies):
 
         self.addTask(queue, self.getPosters, url, mainHtml, metadata, results, force, queue)
 
-        scene_image_count = 0
+        scene_image_max = 0
         try:
-            scene_image_count = int(Prefs['sceneimg'])
+            scene_image_max = int(Prefs['sceneimg'])
         except:
             Log.Error('Unable to parse the Scene image count setting as an integer.')
 
-        if scene_image_count >= 0:
+        if scene_image_max >= 0:
             for i, scene in enumerate(mainHtml.xpath('//div[p//b[contains(text(),"Scene ")]]')):
                 sceneName = self.getStringContentFromXPath(scene, 'p//b[contains(text(),"Scene ")]')
-                sceneUrl = self.getAnchorUrlFromXPath(scene, './/a[not(contains(@href, "download")) and img]')
-
+                sceneUrl = self.getAnchorUrlFromXPath(scene, './/a[contains(@href, "go.data18.com") and img]')
+                if sceneUrl is not None:
+                    #download all the images directly when they are referenced offsite
+                    self.Log('Found scene (%s) - Getting art directly', sceneName)
+                    self.addTask(queue, self.getSceneImagesFromAlternate, i, scene, url, metadata, scene_image_max, results, force, queue)
+                    continue
+                
+                sceneUrl = self.getAnchorUrlFromXPath(scene, './/a[not(contains(@href, "download") ) and img]')
                 if sceneUrl is None:
                     continue
 
                 self.Log('Found scene (%s) - Trying to get fan art from [%s]', sceneName, sceneUrl)
 
-                self.addTask(queue, self.getSceneImages, i, sceneUrl, metadata, scene_image_count, results, force, queue)
+                self.addTask(queue, self.getSceneImages, i, sceneUrl, metadata, scene_image_max, results, force, queue)
 
         queue.join()
         stoprequest.set()
@@ -313,22 +319,29 @@ class Data18(Agent.Movies):
 
     def getPosters(self, url, mainHtml, metadata, results, force, queue):
         posterPageUrl = self.getAnchorUrlFromXPath(mainHtml, '//a[img[@alt="Enlarge Cover"]]')
+        #posterPageUrl will either be a url to an HTML page with 1 or more covers, or a url to a single image which is usually a combined front/back image
         posterHtml = HTML.ElementFromURL(posterPageUrl, sleep=REQUEST_DELAY)
         skipNormalPoster = False
 
         get_poster_alt = Prefs['posteralt']
-        if get_poster_alt and len(posterHtml.xpath('//div[@id="post_view2"]')) > 0:
+        #Check for combined poster image and use alternates if available
+        if get_poster_alt and len(posterHtml.xpath('//div[@id="post_view6"]')) == 0:
             skipNormalPoster = True
             self.getPosterFromAlternate(url, mainHtml, metadata, results, force, queue)
 
         if not skipNormalPoster:
-            i = 1
+            i = len(metadata.posters)+1
             for poster in posterHtml.xpath('//div[@id="post_view6"]//img/@src'):
                 if poster in metadata.posters.keys() and not force:
                     continue
 
                 self.addTask(queue, self.downloadImage, poster, poster, posterPageUrl, False, i, -1, results)
                 i += 1
+
+        #Always get the lower-res poster from the main page that tends to be just the front cover.
+        imageUrl = self.getImageUrlFromXPath(mainHtml, '//img[@alt="Enlarge Cover"]')
+        self.addTask(queue, self.downloadImage, imageUrl, imageUrl, mainHtml, False, len(metadata.posters)+1, -1, results)
+
 
     def getSceneImages(self, sceneIndex, sceneUrl, metadata, sceneImgMax, result, force, queue):
         sceneHtml = HTML.ElementFromURL(sceneUrl, sleep=REQUEST_DELAY)
@@ -403,16 +416,37 @@ class Data18(Agent.Movies):
                 if not img in metadata.art.keys() or force:
                     self.addTask(queue, self.downloadImage, img, img, sceneUrl, False, 0, sceneIndex, result)
 
+
+
+    #download the images directly from the main page
+    def getSceneImagesFromAlternate(self, sceneIndex, sceneHtml, url, metadata, sceneImgMax, result, force, queue):
+        self.Log('Attempting to get art from main page')
+        i = 0
+        for imageUrl in sceneHtml.xpath('.//a[not(contains(@href, "download") ) and img]/img/@src'):
+            if sceneImgMax > 0 and i + 1 > sceneImgMax:
+                break
+
+            if self.hasProxy():
+                imgUrl = self.makeProxyUrl(imageUrl, url)
+            else:
+                imgUrl = imageUrl
+
+            if not imgUrl in metadata.art.keys() or force:
+                #self.Log('Downloading %s', imageUrl)
+                self.addTask(queue, self.downloadImage, imgUrl, imgUrl, url, False, i, sceneIndex, result)
+                i += 1
+
+
     def getPosterFromAlternate(self, url, mainHtml, metadata, results, force, queue):
         provider = ''
-
+    
         # Prefer AEBN, since the poster seems to be better quality there.
         altUrl = self.getAnchorUrlFromXPath(mainHtml, '//a[b[contains(text(),"AEBN")]]')
         if altUrl is not None:
             provider = 'AEBN'
         else:
             provider = 'Data18Store'
-            altUrl = self.getAnchorUrlFromXPath(mainHtml, '//a[b[contains(text(),"Official Store")]]')
+            altUrl = self.getAnchorUrlFromXPath(mainHtml, '//a[contains(text(),"Available for")]')
 
 
         if altUrl is not None:

@@ -3,7 +3,7 @@ import re, types, traceback
 import Queue
 
 # URLS
-VERSION_NO = '1.2013.07.24.1'
+VERSION_NO = '1.2014.09.02.1'
 D18_BASE_URL = 'http://www.data18.com/'
 D18_MOVIE_INFO = D18_BASE_URL + 'movies/%s'
 D18_SEARCH_URL = D18_BASE_URL + 'search/?k=%s&t=0'
@@ -99,7 +99,7 @@ class Data18(Agent.Movies):
         if len(normalizedName) == 0:
             normalizedName = media.name
 
-        self.Log('***** SEARCHING FOR "%s"%s - DATA18CONTENT v.%s *****', normalizedName, searchYear, VERSION_NO)
+        self.Log('***** SEARCHING FOR "%s"%s - DATA18 v.%s *****', normalizedName, searchYear, VERSION_NO)
 
         # Make the URL
         searchUrl = D18_SEARCH_URL % (String.Quote((normalizedName).encode('utf-8'), usePlus=True))
@@ -127,7 +127,7 @@ class Data18(Agent.Movies):
                 continue
 
             # Get the id
-            itemId = url[:-1].split('/', 4)[4]
+            itemId = url.split('/', 4)[4]
 
             if len(itemId) == 0:
                 continue
@@ -183,7 +183,7 @@ class Data18(Agent.Movies):
             i += 1
 
     def update(self, metadata, media, lang, force=False):
-        self.Log('***** UPDATING "%s" ID: %s - DATA18CONTENT v.%s *****', media.title, metadata.id, VERSION_NO)
+        self.Log('***** UPDATING "%s" ID: %s - DATA18 v.%s *****', media.title, metadata.id, VERSION_NO)
 
         # Make url
         url = D18_MOVIE_INFO % metadata.id
@@ -278,7 +278,7 @@ class Data18(Agent.Movies):
 
         self.addTask(queue, self.getPosters, url, mainHtml, metadata, results, force, queue)
 
-        scene_image_max = 0
+        scene_image_max = 20
         try:
             scene_image_max = int(Prefs['sceneimg'])
         except:
@@ -315,34 +315,28 @@ class Data18(Agent.Movies):
             if r['scene'] > -1:
                 metadata.art[r['url']] = proxy
             else:
+                #self.Log('added poster %s (%s)', r['url'], i)
                 metadata.posters[r['url']] = proxy
 
     def getPosters(self, url, mainHtml, metadata, results, force, queue):
-        posterPageUrl = self.getAnchorUrlFromXPath(mainHtml, '//a[img[@alt="Enlarge Cover"]]')
-        #posterPageUrl will either be a url to an HTML page with 1 or more covers, or a url to a single image which is usually a combined front/back image
-        posterHtml = HTML.ElementFromURL(posterPageUrl, sleep=REQUEST_DELAY)
-        skipNormalPoster = False
-
         get_poster_alt = Prefs['posteralt']
+        i = 0
+        for poster in mainHtml.xpath('//a[@data-lightbox="covers"]/@href'):
+            #self.Log('found %s', poster)
+            if poster in metadata.posters.keys() and not force:
+                continue
+            self.addTask(queue, self.downloadImage, poster, poster, url, False, i, -1, results)
+            i += 1
         #Check for combined poster image and use alternates if available
-        if get_poster_alt and len(posterHtml.xpath('//div[@id="post_view6"]')) == 0:
-            skipNormalPoster = True
+        if get_poster_alt and i == 0:
             self.getPosterFromAlternate(url, mainHtml, metadata, results, force, queue)
+            i = len(metadata.posters)
 
-        if not skipNormalPoster:
-            i = len(metadata.posters)+1
-            for poster in posterHtml.xpath('//div[@id="post_view6"]//img/@src'):
-                if poster in metadata.posters.keys() and not force:
-                    continue
-
-                self.addTask(queue, self.downloadImage, poster, poster, posterPageUrl, False, i, -1, results)
-                i += 1
-
-        #Always get the lower-res poster from the main page that tends to be just the front cover.
+        #Always get the lower-res poster from the main page that tends to be just the front cover.  This is close to 100% reliable
         imageUrl = self.getImageUrlFromXPath(mainHtml, '//img[@alt="Enlarge Cover"]')
-        self.addTask(queue, self.downloadImage, imageUrl, imageUrl, mainHtml, False, len(metadata.posters)+1, -1, results)
+        self.addTask(queue, self.downloadImage, imageUrl, imageUrl, url, False, i, -1, results)
 
-
+    
     def getSceneImages(self, sceneIndex, sceneUrl, metadata, sceneImgMax, result, force, queue):
         sceneHtml = HTML.ElementFromURL(sceneUrl, sleep=REQUEST_DELAY)
         sceneTitle = self.getStringContentFromXPath(sceneHtml, '//h1[@class="h1big"]')
@@ -355,62 +349,60 @@ class Data18(Agent.Movies):
             thumbPattern = None
             if thumbPatternSearch is not None:
                 thumbPattern = thumbPatternSearch.group(1)
-
-            firstImageUrl = images[0].xpath('..')[0].get('href')
-
-            html = HTML.ElementFromURL(firstImageUrl, sleep=REQUEST_DELAY)
+            #get viewer page
+            firstViewerPageUrl = images[0].xpath('..')[0].get('href')
+            html = HTML.ElementFromURL(firstViewerPageUrl, sleep=REQUEST_DELAY)
 
             imageCount = None
             imageCountSearch = re.search(r'Image \d+ of (\d+)', html.text_content())
             if imageCountSearch is not None:
                 imageCount = int(imageCountSearch.group(1))
+            else:
+                # No thumbs were found on the page, which seems to be the case for some scenes where there are only 4 images
+                # so let's just pretend we found thumbs
+                imageCount = 4
 
-            # Find the actual image
+            # plex silently dies or kills this off if it downloads too much stuff, especially if there are errors. have to manually limit numbers of images for now
+            # workaround!!!
+            if imageCount > 3:
+                imageCount = 3
+
+            # Find the actual first image on the viewer page
             imageUrl = self.getImageUrlFromXPath(html, '//div[@id="post_view"]//img')
 
-            thumbs = []
-            if imageCount is not None:
-                for idx in range(1, imageCount + 1):
-                    th = '%s%02d' % (firstImageUrl[:-2], idx)
-                    thumbs.append(th)
-
-            # No thumbs were found on the page, which seems to be the case for some scenes where there are only 4 images
-            # so let's just pretend we found thumbs
-            if len(thumbs) == 0:
-                thumbBase = firstImageUrl[:-2]
-                for x in range(1, 5):
-                    thumbs.append(thumbBase + '%02d' % x)
-
             # Go through the thumbnails replacing the id of the previous image in the imageUrl on each iteration.
-            for i, thumb in enumerate(thumbs):
-                imgId = thumb[-2:]
+            for i in range(1,imageCount+1):
+                imgId = '%02d' % i
                 imageUrl = re.sub(r'\d{1,3}.jpg', imgId + '.jpg', imageUrl)
                 thumbUrl = None
                 if thumbPattern is not None:
-                    thumbUrl = re.sub(r'\d{1,3}.jpg', thumbPattern + '/' + imgId + '.jpg', imageUrl)
+                    thumbUrl = re.sub(r'\d{1,3}.jpg', imgId + '.jpg', firstImage)
 
-                if sceneImgMax > 0 and i + 1 > sceneImgMax:
+                if imgCount > sceneImgMax:
+                    #self.Log('Maximum background art downloaded')
                     break
                 imgCount += 1
 
                 if self.hasProxy():
-                    imgUrl = self.makeProxyUrl(imageUrl, thumb)
+                    imgUrl = self.makeProxyUrl(imageUrl, firstViewerPageUrl)
+                    thumbUrl = None
                 else:
                     imgUrl = imageUrl
                     thumbUrl = None
 
                 if not imgUrl in metadata.art.keys() or force:
                     if thumbUrl is not None:
-                        self.addTask(queue, self.downloadImage, thumbUrl, imgUrl, thumb, True, i, sceneIndex, result)
+                        self.addTask(queue, self.downloadImage, thumbUrl, imgUrl, firstViewerPageUrl, True, i, sceneIndex, result)
                     else:
-                        self.addTask(queue, self.downloadImage, imgUrl, imgUrl, thumb, False, i, sceneIndex, result)
+                        self.addTask(queue, self.downloadImage, imgUrl, imgUrl, firstViewerPageUrl, False, i, sceneIndex, result)
 
         if imgCount == 0:
             # Use the player image from the main page as a backup
             playerImg = self.getImageUrlFromXPath(sceneHtml, '//img[@alt="Play this Video" or contains(@src,"/hor.jpg")]')
             if playerImg is not None and len(playerImg) > 0:
-                img = self.makeProxyUrl(playerImg, sceneUrl)
-                if not self.hasProxy:
+                if self.hasProxy():
+                    img = self.makeProxyUrl(playerImg, sceneUrl)
+                else:
                     img = playerImg
 
                 if not img in metadata.art.keys() or force:

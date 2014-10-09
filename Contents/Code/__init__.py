@@ -321,7 +321,10 @@ class Data18(Agent.Movies):
     def getPosters(self, url, mainHtml, metadata, results, force, queue):
         get_poster_alt = Prefs['posteralt']
         i = 0
-        for poster in mainHtml.xpath('//a[@data-lightbox="covers"]/@href'):
+
+        #get full size posters
+        #for poster in mainHtml.xpath('//a[@data-lightbox="covers"]/@href'):
+        for poster in mainHtml.xpath('//a[@rel="covers"]/@href'):
             #self.Log('found %s', poster)
             if poster in metadata.posters.keys() and not force:
                 continue
@@ -333,7 +336,7 @@ class Data18(Agent.Movies):
             i = len(metadata.posters)
 
         #Always get the lower-res poster from the main page that tends to be just the front cover.  This is close to 100% reliable
-        imageUrl = self.getImageUrlFromXPath(mainHtml, '//img[@alt="Enlarge Cover"]')
+        imageUrl = self.getImageUrlFromXPath(mainHtml, '//img[@alt="Cover"]')
         self.addTask(queue, self.downloadImage, imageUrl, imageUrl, url, False, i, -1, results)
 
     

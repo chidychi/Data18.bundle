@@ -3,7 +3,7 @@ import re, types, traceback
 import Queue
 
 # URLS
-VERSION_NO = '1.2014.09.02.1'
+VERSION_NO = '1.2015.01.09.1'
 D18_BASE_URL = 'http://www.data18.com/'
 D18_MOVIE_INFO = D18_BASE_URL + 'movies/%s'
 D18_SEARCH_URL = D18_BASE_URL + 'search/?k=%s&t=0'
@@ -326,6 +326,8 @@ class Data18(Agent.Movies):
         #for poster in mainHtml.xpath('//a[@data-lightbox="covers"]/@href'):
         for poster in mainHtml.xpath('//a[@rel="covers"]/@href'):
             #self.Log('found %s', poster)
+            if 'frontback' in poster:
+                continue
             if poster in metadata.posters.keys() and not force:
                 continue
             self.addTask(queue, self.downloadImage, poster, poster, url, False, i, -1, results)

@@ -104,7 +104,11 @@ class Data18(Agent.Movies):
         # Make the URL
         searchUrl = D18_SEARCH_URL % (String.Quote((normalizedName).encode('utf-8'), usePlus=True))
         found = self.doSearch(searchUrl)
-
+        found2 = media.name.lstrip('0123456789')
+        if normalizedName != found2:
+            searchUrl = D18_SEARCH_URL % (String.Quote((found2).encode('utf-8'), usePlus=True))
+            found.extend(self.doSearch(searchUrl))
+            
         # Write search result status to log
         if len(found) == 0:
             self.Log('No results found for query "%s"%s', normalizedName, searchYear)
@@ -204,27 +208,33 @@ class Data18(Agent.Movies):
                 metadata.year = date.year
 
             # Get the title
-            metadata.title = self.getStringContentFromXPath(html, '//h1[@class="h1big" or @class="h1reduce" or @class="h1reduce2"]')
+            metadata.title = self.getStringContentFromXPath(html, '//h1')
 
             # Set the summary
-            paragraph = html.xpath('//div[b[contains(text(),"Description:")]]/p')
+            paragraph = html.xpath('//div/p[b[contains(text(),"Description:")]]/.')
             if len(paragraph) > 0:
                 summary = paragraph[0].text_content().strip('\n').strip()
                 summary = re.sub(r'Description:', '', summary.strip())
                 metadata.summary = summary
 
-            # Set the studio and director
+            # Set the studio, series, and director
             metadata.collections.clear()
-            studio_and_director = html.xpath('//p[b[contains(text(),"Studio:")]]')
+            studio_and_director = html.xpath('//p[b[contains(text(),"Serie:")]]')
             if len(studio_and_director) > 0:
-                metadata.studio = self.getStringContentFromXPath(studio_and_director[0], 'a[1]')
-                metadata.directors.clear()
-                metadata.directors.add(self.getStringContentFromXPath(studio_and_director[0], 'a[2]'))
-
-            # Set the serie
-            serie = html.xpath('//p[b[contains(text(),"Serie:")]]')
-            if len(serie) > 0:
-                metadata.collections.add(self.getStringContentFromXPath(serie[0], 'a[1]'))
+                try:
+                    metadata.studio = self.getStringContentFromXPath(studio_and_director[0], 'a[1]')
+		    metadata.collections.clear()
+                    metadata.collections.add(self.getStringContentFromXPath(studio_and_director[0], 'a[2]'))
+                    metadata.directors.clear()
+                    metadata.directors.add(self.getStringContentFromXPath(studio_and_director[0], 'a[3]'))
+                except:
+                    Log.Error('Error obtaining data for item with id %s (%s) [%s] ', metadata.id, url, e.message)            
+            else: 
+                studio_and_director = html.xpath('//p/text()[contains(.,"Director")]/..')
+                if len(studio_and_director) > 0:
+                    metadata.studio = self.getStringContentFromXPath(studio_and_director[0], 'a[1]')
+                    metadata.directors.clear()
+                    metadata.directors.add(self.getStringContentFromXPath(studio_and_director[0], 'a[2]'))
 
             # Add the genres
             metadata.genres.clear()

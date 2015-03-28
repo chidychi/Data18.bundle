@@ -3,7 +3,7 @@ import re, types, traceback
 import Queue
 
 # URLS
-VERSION_NO = '1.2015.03.28.2'
+VERSION_NO = '1.2015.03.28.3'
 D18_BASE_URL = 'http://www.data18.com/'
 D18_MOVIE_INFO = D18_BASE_URL + 'movies/%s'
 D18_SEARCH_URL = D18_BASE_URL + 'search/?k=%s&t=0'
@@ -82,14 +82,14 @@ class Data18(Agent.Movies):
 
     def search(self, results, media, lang, manual=False):
         if media.name.isdigit():
-            try:    
-                self.Log('Media.name is numeric')
-                # Make url
-                url = D18_MOVIE_INFO % media.name
-                # Fetch HTML
-                html = HTML.ElementFromURL(url, sleep=REQUEST_DELAY)
-                # Set the result
-                results.Append(MetadataSearchResult(id = media.name, name  = self.getStringContentFromXPath(html, '//h1'), score = '100', lang = lang))
+        
+            self.Log('Media.name is numeric')
+            # Make url
+            url = D18_MOVIE_INFO % media.name
+            # Fetch HTML
+            html = HTML.ElementFromURL(url, sleep=REQUEST_DELAY)
+            # Set the result
+            results.Append(MetadataSearchResult(id = media.name, name  = self.getStringContentFromXPath(html, '//h1'), score = '100', lang = lang))
             
         yearFromNamePattern = r'\(\d{4}\)'
         yearFromName = re.search(yearFromNamePattern, media.name)

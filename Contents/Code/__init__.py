@@ -3,7 +3,7 @@ import re, types, traceback
 import Queue
 
 # URLS
-VERSION_NO = '1.2015.03.28.1'
+VERSION_NO = '1.2015.03.28.2'
 D18_BASE_URL = 'http://www.data18.com/'
 D18_MOVIE_INFO = D18_BASE_URL + 'movies/%s'
 D18_SEARCH_URL = D18_BASE_URL + 'search/?k=%s&t=0'
@@ -82,7 +82,7 @@ class Data18(Agent.Movies):
 
     def search(self, results, media, lang, manual=False):
         if media.name.isdigit():
-            try    
+            try:    
                 self.Log('Media.name is numeric')
                 # Make url
                 url = D18_MOVIE_INFO % media.name

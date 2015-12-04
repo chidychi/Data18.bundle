@@ -75,14 +75,14 @@ class Data18(Agent.Movies):
             title = self.getStringContentFromXPath(r, 'a[2]')
             murl = self.getAnchorUrlFromXPath(r, 'a[2]')
             thumb = self.getImageUrlFromXPath(r, 'a/img')
-            
+
             found.append({'url': murl, 'title': title, 'date': date, 'thumb': thumb})
 
         return found
 
     def search(self, results, media, lang, manual=False):
         if media.name.isdigit():
-        
+
             self.Log('Media.name is numeric')
             # Make url
             url = D18_MOVIE_INFO % media.name
@@ -90,7 +90,7 @@ class Data18(Agent.Movies):
             html = HTML.ElementFromURL(url, sleep=REQUEST_DELAY)
             # Set the result
             results.Append(MetadataSearchResult(id = media.name, name  = self.getStringContentFromXPath(html, '//h1'), score = '100', lang = lang))
-            
+
         yearFromNamePattern = r'\(\d{4}\)'
         yearFromName = re.search(yearFromNamePattern, media.name)
         if not media.year and yearFromName is not None:
@@ -118,7 +118,7 @@ class Data18(Agent.Movies):
         if normalizedName != found2:
             searchUrl = D18_SEARCH_URL % (String.Quote((found2).encode('utf-8'), usePlus=True))
             found.extend(self.doSearch(searchUrl))
-            
+
         # Write search result status to log
         if len(found) == 0:
             self.Log('No results found for query "%s"%s', normalizedName, searchYear)
@@ -227,28 +227,37 @@ class Data18(Agent.Movies):
                 summary = re.sub(r'Description:', '', summary.strip())
                 metadata.summary = summary
 
-            # Set the studio, series, and director
-            metadata.collections.clear()
-            studio_and_director = html.xpath('//p[b[contains(text(),"Serie:")]]')
+            # def getStringContentFromXPath(self, source, query):
+            #     return source.xpath('string(' + query + ')')
+
+            # Set the studio, and director
+            studio_and_director = html.xpath('//p[b[contains(text(),"Studio:")]]')
             if len(studio_and_director) > 0:
                 try:
                     metadata.studio = self.getStringContentFromXPath(studio_and_director[0], 'a[1]')
-		    metadata.collections.clear()
-                    metadata.collections.add(self.getStringContentFromXPath(studio_and_director[0], 'a[2]'))
                     metadata.directors.clear()
-                    metadata.directors.add(self.getStringContentFromXPath(studio_and_director[0], 'a[3]'))
+                    metadata.directors.add(self.getStringContentFromXPath(studio_and_director[0], 'a[2]'))
                 except:
-                    Log.Error('Error obtaining data for item with id %s (%s) [%s] ', metadata.id, url, e.message)            
-            else: 
+                    Log.Error('Error obtaining data for item with id %s (%s) [%s] ', metadata.id, url, e.message)
+            else:
                 studio_and_director = html.xpath('//p/text()[contains(.,"Director")]/..')
                 if len(studio_and_director) > 0:
                     metadata.studio = self.getStringContentFromXPath(studio_and_director[0], 'a[1]')
                     metadata.directors.clear()
                     metadata.directors.add(self.getStringContentFromXPath(studio_and_director[0], 'a[2]'))
 
+            # Set series and add to collections
+            metadata.collections.clear()
+            series = html.xpath('//p[b[contains(text(),"Serie:")]]')
+            if len(series) > 0:
+                try:
+                    metadata.collections.add(self.getStringContentFromXPath(series[0], 'a[1]'))
+                except:
+                    pass
+
             # Add the genres
             metadata.genres.clear()
-            genres = html.xpath('//div[b[contains(text(),"Categories:")]]/a/text()')
+            genres = html.xpath('//p[b[contains(text(),"Categories:")]]/a/text()')
             for genre in genres:
                 genre = genre.strip()
                 if len(genre) > 0 and re.match(r'View Complete List', genre) is None:
@@ -313,7 +322,7 @@ class Data18(Agent.Movies):
                     self.Log('Found scene (%s) - Getting art directly', sceneName)
                     self.addTask(queue, self.getSceneImagesFromAlternate, i, scene, url, metadata, scene_image_max, results, force, queue)
                     continue
-                
+
                 sceneUrl = self.getAnchorUrlFromXPath(scene, './/a[not(contains(@href, "download") ) and img]')
                 if sceneUrl is None:
                     continue
@@ -361,7 +370,7 @@ class Data18(Agent.Movies):
         imageUrl = self.getImageUrlFromXPath(mainHtml, '//img[@alt="Cover"]')
         self.addTask(queue, self.downloadImage, imageUrl, imageUrl, url, False, i, -1, results)
 
-    
+
     def getSceneImages(self, sceneIndex, sceneUrl, metadata, sceneImgMax, result, force, queue):
         sceneHtml = HTML.ElementFromURL(sceneUrl, sleep=REQUEST_DELAY)
         sceneTitle = self.getStringContentFromXPath(sceneHtml, '//h1[@class="h1big"]')
@@ -456,7 +465,7 @@ class Data18(Agent.Movies):
 
     def getPosterFromAlternate(self, url, mainHtml, metadata, results, force, queue):
         provider = ''
-    
+
         # Prefer AEBN, since the poster seems to be better quality there.
         altUrl = self.getAnchorUrlFromXPath(mainHtml, '//a[b[contains(text(),"AEBN")]]')
         if altUrl is not None:

@@ -3,7 +3,7 @@ import re, types, traceback
 import Queue
 
 # URLS
-VERSION_NO = '1.2015.03.28.3'
+VERSION_NO = '1.2015.06.30.1'
 D18_BASE_URL = 'http://www.data18.com/'
 D18_MOVIE_INFO = D18_BASE_URL + 'movies/%s'
 D18_SEARCH_URL = D18_BASE_URL + 'search/?k=%s&t=0'
@@ -267,7 +267,7 @@ class Data18(Agent.Movies):
             metadata.roles.clear()
             for performer in html.xpath('//p[@class="line1"]/a/img[@class="yborder"]'):
                 role = metadata.roles.new()
-                role.actor = performer.get('alt').strip()
+                role.name = performer.get('alt').strip()
 
                 # Get the url for performer photo
                 role.photo = re.sub(r'/stars/60/', '/stars/pic/', performer.get('src'))
@@ -525,7 +525,7 @@ class Data18(Agent.Movies):
         if len(metadata.roles) > 0:
             self.Log('|\\')
             for i in range(len(metadata.roles)):
-                self.Log('| * Starring:      %s (%s)', metadata.roles[i].actor, metadata.roles[i].photo)
+                self.Log('| * Starring:      %s (%s)', metadata.roles[i].name, metadata.roles[i].photo)
 
         if len(metadata.genres) > 0:
             self.Log('|\\')

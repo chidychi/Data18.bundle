@@ -3,7 +3,7 @@ import re, types, traceback
 import Queue
 
 # URLS
-VERSION_NO = '1.2015.06.30.1'
+VERSION_NO = '1.2016.06.30.1'
 D18_BASE_URL = 'http://www.data18.com/'
 D18_MOVIE_INFO = D18_BASE_URL + 'movies/%s'
 D18_SEARCH_URL = D18_BASE_URL + 'search/?k=%s&t=0'

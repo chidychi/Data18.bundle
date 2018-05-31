@@ -270,7 +270,7 @@ class Data18(Agent.Movies):
                 role.name = performer.get('alt').strip()
 
                 # Get the url for performer photo
-                role.photo = re.sub(r'/stars/60/', '/stars/pic/', performer.get('src'))
+                role.photo = re.sub(r'/stars/60/', '/stars/120/', performer.get('src'))
 
             # Get posters and fan art.
             self.getImages(url, html, metadata, force)
@@ -352,8 +352,7 @@ class Data18(Agent.Movies):
         i = 0
 
         #get full size posters
-        #for poster in mainHtml.xpath('//a[@data-lightbox="covers"]/@href'):
-        for poster in mainHtml.xpath('//a[@rel="covers"]/@href'):
+        for poster in mainHtml.xpath('//a[substring(@title,string-length(@title) -string-length(" Cover") +1) = " Cover"]/@href'):
             #self.Log('found %s', poster)
             if 'frontback' in poster:
                 continue
